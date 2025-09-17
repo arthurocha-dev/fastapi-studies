@@ -1,4 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from database import model
+from dependencies import pegar_session
+
 
 # a aplicacao vai ser organizada por exemplo: "dominiosite/auth/cadastro"
 
@@ -33,7 +36,7 @@ auth_routerr = APIRouter(prefix="/auth", tags=["auth"])
 
 
 # 👉 Esse é o decorator:
-@auth_routerr.get("/cadastro")
+@auth_routerr.get("teste")
 # Ele diz ao FastAPI: “essa função abaixo é o que deve ser executado quando alguém fizer uma requisição GET para /requested/requested_food”.
 # O caminho "/requested_food" se junta ao prefixo lá de cima, formando /requested/requested_food
 
@@ -78,9 +81,29 @@ async def cadastros():
    
 #👉 O que a função retorna.
     return {
-        "mensagem": "Usuário cadastrado com suecesso!"
+        "mensagem": "teste de response"
     }
 
 # No FastAPI, se você retorna um dicionário Python, ele vira JSON automaticamente na resposta HTTP.
 
-# A resposta do cliente vai ser:
+# A resposta do cliente vai ser: "mensagem": "teste de response"
+
+
+
+
+
+
+
+@auth_routerr.post("/cadastro")
+async def create_user(email: str, senha: str, nome: str, session = Depends(pegar_session)):
+    existe_usuario = session.query(model.Usuario).filter(model.Usuario.emailT==email).first()
+
+    if existe_usuario:
+        #já existe um usuário com esse email
+        return {"Mensagem": "já existe um usuário com esse email"}
+    
+    else:
+        novo_usuario = model.Usuario(nome, email, senha)
+        session.add(novo_usuario)
+        session.commit()
+        return {"Mensagem": "usuário cadastrado com sucesso"}
