@@ -42,20 +42,39 @@ class Usuario(Base): #herda a estrutura de tabela
 class Pedido(Base):
     __tablename__ = "pedidos"
 
-    Status_pedido = (
-        # (chave, valor) chave: valor que vai ficar armazenado no bd, valor quando se quiser printar
-        ("PENDENTE", "PENDENTE"),
-        ("CANCELADO", "CANCELADO"),
-        ("FINALIZADO", "FINALIZADO")
-    )
+    # Status_pedido = (
+    #     # (chave, valor) chave: valor que vai ficar armazenado no bd, valor quando se quiser printar
+    #     ("PENDENTE", "PENDENTE"),
+    #     ("CANCELADO", "CANCELADO"),
+    #     ("FINALIZADO", "FINALIZADO")
+    # )
 
     idT = Column("id", Integer, primary_key = True, autoincrement = True)
-    status = Column("status", ChoiceType(choices=Status_pedido))
-    usuario = Column("usuario", ForeignKey("usuarios.id"))
-    preco = Column("preco", Float)
+    status = Column("status", String)
+    user = Column("usuario", ForeignKey("usuarios.id"))
+    price = Column("preco", Float)
     # itens = 
 
     def __init__(self, usuario, status="PENDENTE", preco=0):
-        self.usuario = usuario
+        self.user = usuario
         self.status = status
-        self.preco = preco
+        self.price = preco
+
+
+
+class ItenPedido(Base):
+    __tablename__ = "itens_pedido"
+
+    id = Column("id", Integer, autoincrement=True, primary_key=True)
+    amount = Column("quantidade", Integer)
+    flavor = Column("sabor", String)
+    size = Column("tamanho", String)
+    price_unitary = Column("preco_unitario", Float)
+    request = Column("pedido", ForeignKey("pedidos.id"))
+
+    def __init__(self, quantidade, sabor, tamanho, preco_unitario, pedido):
+        self.amount = quantidade
+        self.flavor = sabor
+        self.size = tamanho
+        self.price_unitary = preco_unitario
+        self.request = pedido
