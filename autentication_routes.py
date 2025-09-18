@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from database import model
-from dependencies import pegar_session
-
+from depedencies import pegar_sessao # função que devolve a sessão do banco
+from main import bycrypt_context
+from schemas import UsuarioSchema, LoginSchema
+from sqlalchemy.orm import Session
+from sqlalchemy import and_
 
 # a aplicacao vai ser organizada por exemplo: "dominiosite/auth/cadastro"
 
@@ -32,11 +35,23 @@ auth_routerr = APIRouter(prefix="/auth", tags=["auth"])
 
 
 
+def usuario_login(email, senha, session):
+    usario_cadastrado = session.query(model.Usuario).filter(email == model.Usuario.emailT).first()
+    
+    if not usario_cadastrado:
+        return False
+
+    elif not bycrypt_context.verify(senha, usario_cadastrado.passwordT):
+        return False
+    
+    return usario_cadastrado
+
 
 
 
 # 👉 Esse é o decorator:
-@auth_routerr.get("teste")
+@auth_routerr.get("/teste")
+
 # Ele diz ao FastAPI: “essa função abaixo é o que deve ser executado quando alguém fizer uma requisição GET para /requested/requested_food”.
 # O caminho "/requested_food" se junta ao prefixo lá de cima, formando /requested/requested_food
 
@@ -51,7 +66,7 @@ auth_routerr = APIRouter(prefix="/auth", tags=["auth"])
 
 
 # 👉 Essa é a função handler.
-async def cadastros():
+async def teste():
 
 # async def = função assíncrona.
 
@@ -86,7 +101,7 @@ async def cadastros():
 
 # No FastAPI, se você retorna um dicionário Python, ele vira JSON automaticamente na resposta HTTP.
 
-# A resposta do cliente vai ser: "mensagem": "teste de response"
+# A resposta do cliente vai ser: "teste de mensagem"
 
 
 
@@ -94,16 +109,53 @@ async def cadastros():
 
 
 
-@auth_routerr.post("/cadastro")
-async def create_user(email: str, senha: str, nome: str, session = Depends(pegar_session)):
-    existe_usuario = session.query(model.Usuario).filter(model.Usuario.emailT==email).first()
 
-    if existe_usuario:
-        #já existe um usuário com esse email
-        return {"Mensagem": "já existe um usuário com esse email"}
+
+
+# Define uma rota POST em /auth/create_user
+# Ela recebe: nome, email, senha e uma sessão de banco (injeção via Depends)
+@auth_routerr.post("/create_user")
+async def create_user(usuario:UsuarioSchema, session: Session = Depends(pegar_sessao)):
+
+       # 1. Verifica se já existe um usuário com esse email
+    usuario_existe = session.query(model.Usuario).filter(model.Usuario.emailT == usuario.email).first()
+
+    if usuario_existe:
+        #se o usuário existir
+        raise HTTPException(status_code=400, detail= f"Usuário { {usuario.nome} } já existe ")
+        #raise levanta um erro, ao invés de return que retorna um response de positivo(200)
     
     else:
-        novo_usuario = model.Usuario(nome, email, senha)
+
+        senha_cryptografada = bycrypt_context.hash(usuario.senha) # esse hash é uma função gerador de código, ou seja, ele vai gerar um códig em cima da senha que o usuário criou
+
+        # Se não existir:
+        # cria um novo objeto Usuario com os dados recebidos
+        novo_usuario = model.Usuario(usuario.nome, usuario.email, senha_cryptografada, usuario.telefone, usuario.active, usuario.admin)
+
+        # adiciona esse novo usuário à sessão (ainda não gravou no banco)
         session.add(novo_usuario)
+
+         # confirma a transação, salvando no banco de dados de fato
         session.commit()
-        return {"Mensagem": "usuário cadastrado com sucesso"}
+
+        #retorna mensagem de sucesso
+        return {"Mensagem": f"usuário { {usuario.nome} } criado com sucesso"}
+    
+
+
+
+
+@auth_routerr.post('/login')
+async def login(login_schema: LoginSchema, session: Session = Depends(pegar_sessao)):
+    
+    user = usuario_login(login_schema.email_login, login_schema.senha_login, session)
+
+    if user:
+        return {'mensagem': f'usuario { {login_schema.email_login} } logado'}
+    
+    if not user:
+        # return {"Mensagem": f"{ {login_schema.email_login} } logado"}
+        raise HTTPException(status_code=400, detail= f"usuário { {login_schema.email_login} } não foi cadastrado ou credencias inválidas")
+       
+  
