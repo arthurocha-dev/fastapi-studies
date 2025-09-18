@@ -1,6 +1,18 @@
 from fastapi import FastAPI
+from passlib.context import CryptContext
+from dotenv import load_dotenv #importação pra pegar a variável de ambiente
+import os #pega arquivos do projeto 
+
+load_dotenv() #carrega as variáveis de ambiente
+
+SECRET_KEY = os.getenv('SECRET_KEY_V') #pega a variável de ambiente com esse nome
 
 app = FastAPI()
+
+#depois de ter criado a aplicação
+
+#Crie um contexto que use o algoritmo bcrypt para hash de senhas. Se no futuro eu adicionar outro algoritmo, o Passlib vai cuidar da compatibilidade e migração automática.
+bycrypt_context = CryptContext(schemes=["bcrypt"], deprecated = "auto")
 
 #para rodar nossa aplicação, executar no terminal: uvicorn main:app --reload
 

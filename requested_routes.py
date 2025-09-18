@@ -1,10 +1,12 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from depedencies import pegar_sessao
 
 
 requested_routerr = APIRouter(prefix="/requested", tags=["requested"])
 
 
-@requested_routerr.get("/requested_food")
+@requested_routerr.get("/teste")
 async def requested():
 
     """Teste de mensagem"""
@@ -16,3 +18,8 @@ async def requested():
         "pagou": False
            
     }
+
+
+@requested_routerr.post("/create_pedidos")
+async def create_request(session: Session = Depends(pegar_sessao)):
+    return 

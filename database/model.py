@@ -28,7 +28,7 @@ class Usuario(Base): #herda a estrutura de tabela
     
 
     #parametros de quando for chamada a classe pra fazer o novo usuario(instância)
-    def __init__ (self, name, email, telephone, password, active, adm=False):
+    def __init__ (self, name, email, password, telephone = "NÃO PASSADO", active =  True, adm=False):
         self.nameT = name
         self.emailT = email
         self.telephoneT = telephone

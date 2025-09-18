@@ -1,4 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
+from database import model
+from depedencies import pegar_sessao # função que devolve a sessão do banco
+from main import bycrypt_context
+from schemas import UsuarioSchema
+from sqlalchemy.orm import Session
 
 # a aplicacao vai ser organizada por exemplo: "dominiosite/auth/cadastro"
 
@@ -33,7 +38,7 @@ auth_routerr = APIRouter(prefix="/auth", tags=["auth"])
 
 
 # 👉 Esse é o decorator:
-@auth_routerr.get("/cadastro")
+@auth_routerr.get("/teste")
 # Ele diz ao FastAPI: “essa função abaixo é o que deve ser executado quando alguém fizer uma requisição GET para /requested/requested_food”.
 # O caminho "/requested_food" se junta ao prefixo lá de cima, formando /requested/requested_food
 
@@ -48,7 +53,7 @@ auth_routerr = APIRouter(prefix="/auth", tags=["auth"])
 
 
 # 👉 Essa é a função handler.
-async def cadastros():
+async def teste():
 
 # async def = função assíncrona.
 
@@ -78,9 +83,48 @@ async def cadastros():
    
 #👉 O que a função retorna.
     return {
-        "mensagem": "Usuário cadastrado com suecesso!"
+        "mensagem": "teste de mensagem"
     }
 
 # No FastAPI, se você retorna um dicionário Python, ele vira JSON automaticamente na resposta HTTP.
 
-# A resposta do cliente vai ser:
+# A resposta do cliente vai ser: "teste de mensagem"
+
+
+
+
+
+
+
+
+
+
+# Define uma rota POST em /auth/create_user
+# Ela recebe: nome, email, senha e uma sessão de banco (injeção via Depends)
+@auth_routerr.post("/create_user")
+async def create_user(usuario:UsuarioSchema, session: Session = Depends(pegar_sessao)):
+
+       # 1. Verifica se já existe um usuário com esse email
+    usuario_existe = session.query(model.Usuario).filter(model.Usuario.emailT == usuario.email).first()
+
+    if usuario_existe:
+        #se o usuário existir
+        raise HTTPException(status_code=400, detail= f"Usuário { {usuario.nome} } já existe ")
+        #raise levanta um erro, ao invés de return que retorna um response de positivo(200)
+    
+    else:
+
+        senha_cryptografada = bycrypt_context.hash(usuario.senha) # esse hash é uma função gerador de código, ou seja, ele vai gerar um códig em cima da senha que o usuário criou
+
+        # Se não existir:
+        # cria um novo objeto Usuario com os dados recebidos
+        novo_usuario = model.Usuario(usuario.nome, usuario.email, senha_cryptografada, usuario.telefone, usuario.active, usuario.admin)
+
+        # adiciona esse novo usuário à sessão (ainda não gravou no banco)
+        session.add(novo_usuario)
+
+         # confirma a transação, salvando no banco de dados de fato
+        session.commit()
+
+        #retorna mensagem de sucesso
+        return {"Mensagem": f"usuário { {usuario.nome} } criado com sucesso"}
