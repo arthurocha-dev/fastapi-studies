@@ -42,7 +42,7 @@ def create_token(id_user,duration_token= timedelta(minutes=ACESS_TOKEN_EXIPIRE_M
     dic_info = {"sub": str(id_user), "exp": data_expiracao}
 
     #pra gerar o token, vc precisa usar a função jwt.encode(dicionario com as informações do usuario, a chave secreta que vai esconder as infromações nesse texto, e o tipo de algoritimo)
-    jwt_codificado = jwt.encode(dic_info, SECRET_KEY, ALGORITHM)
+    jwt_codificado = jwt.encode(dic_info, SECRET_KEY, algorithm= "HS256")
 
     return jwt_codificado
 
@@ -184,9 +184,16 @@ async def login(login_schema: LoginSchema, session: Session = Depends(pegar_sess
         refresh_token = create_token(user.idT, timedelta(days=7) )
 
         return {
-            "acess_token": acess_token,
+             # ⚠️ ERRO AQUI: você escreveu "acess_token" (com 1 "c")
+            # mas o Swagger espera EXATAMENTE "access_token"
+            # Se não for "access_token", ele não entende que é o token de login.
+            "access_token": acess_token,
             "refresh_token": refresh_token,
-            "token_type": "Bearer"        # Mas por que tem que informar token_type?      
+
+            # ⚠️ Outro detalhe: o tipo deve ser "bearer" em minúsculo.
+            # Você colocou "Bearer". O Swagger é chatinho e não reconhece maiúsculo.
+            "token_type": "bearer"        
+                                            # Mas por que tem que informar token_type?      
                                           # O cliente (frontend, app, outro serviço) precisa saber como usar o token quando for mandar requisições futuras.
                                           # O tipo mais comum é Bearer, que significa literalmente: “se você tem o token, você pode usá-lo”. 
         }   
@@ -209,8 +216,8 @@ async def login(dados_form: OAuth2PasswordRequestForm = Depends(), session: Sess
         acess_token = create_token(user.idT)
 
         return {
-            "acess_token": acess_token,
-            "token_type": "Bearer"        
+           "access_token": acess_token,   # ← deve ser "access_token"
+            "token_type": "bearer"        # ← deve ser "bearer"       
         }   
     
     if not user:
@@ -241,8 +248,8 @@ async def use_refresh_token(usuario: model.Usuario = Depends(verificar_token)):
     # Ou: armazenar refresh tokens no DB (mais seguro), e validar contra o DB.
     #
     # Sem essa distinção, um access token roubado poderia ser usado para gerar novos access tokens.
-    access_token = create_token(usuario.idT)
+    acess_token = create_token(usuario.idT)
     return {
-        "access_token": access_token,
+        "acess_token": acess_token,
         "token_type": "Bearer"
     }

@@ -4,8 +4,7 @@ from depedencies import pegar_sessao, verificar_token
 from schemas import PedidosSchema
 from database import model
 
-requested_routerr = APIRouter(prefix="/requested", tags=["pedidos"])
-
+requested_routerr = APIRouter(prefix="/requested", tags=["pedidos"], dependencies = [Depends(verificar_token)])
 
 @requested_routerr.get("/teste")
 async def requested():
@@ -46,4 +45,17 @@ async def cancel_request(id_pedido: int, session: Session = Depends(pegar_sessao
     return{
         "mensagem": f"pedido {id_pedido} foi cancelado",
         "pedido": pedido
+    }
+
+
+
+@requested_routerr.get("/list_request")
+async def listar(session: Session = Depends(pegar_sessao), usuario: model.Usuario = Depends(verificar_token)):
+    if not usuario.admT:
+        raise HTTPException(status_code=401, detail="Você não tem alturização pra fazer essa requisição")
+    else:
+        pedido = session.query(model.Pedido).all()
+
+    return {
+        "pedidos": pedido
     }

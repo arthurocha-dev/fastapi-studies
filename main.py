@@ -24,7 +24,11 @@ bycrypt_context = CryptContext(schemes=["bcrypt"], deprecated = "auto")
 # Importante: isso NÃO faz validação automática do token — só ajuda o FastAPI a extrair o token do header.
 oauth2_schema = OAuth2PasswordBearer(tokenUrl="auth/form-authorization")
 
-
+# ↑ Isso diz ao FastAPI + Swagger:
+#   "Existe um endpoint chamado /auth/form-authorization que retorna um token e o tipo dele(bearer)."
+#   O Swagger vai usar esse endpoint pra fazer login e depois
+#   injetar o token automaticamente no HEADER:
+#       Authorization: Bearer <seu_token>
 
 
 

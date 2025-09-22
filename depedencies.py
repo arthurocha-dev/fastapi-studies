@@ -47,7 +47,7 @@ def verificar_token(token: str = Depends(oauth2_schema), session: Session = Depe
     try:
         # Decodifica o JWT (verifica assinatura, validade, etc).
         # Use `algorithms=[ALGORITHM]` (lista) — é o jeito correto com python-jose.
-        dic_info = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        dic_info = jwt.decode(token, SECRET_KEY, algorithms= "HS256")
 
         # Pegamos a claim "sub" (subject) que foi colocada no token quando ele foi criado.
         # Por convenção costumamos colocar o id do usuário em "sub".
