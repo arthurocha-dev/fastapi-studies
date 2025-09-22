@@ -1,33 +1,18 @@
-from fastapi import Depends, HTTPException
-from main import SECRET_KEY, ALGORITHM, oauth2_schema
-from database import model
-from jose import jwt, JWTError
-from sqlalchemy.orm import sessionmaker, Session
+# === main.py (ou arquivo onde você definiu o "schema" OAuth2) ===
+from fastapi.security import OAuth2PasswordBearer
 
-# Dependency que será usada pelo FastAPI para entregar uma sessão de banco
-def pegar_sessao():
-    try:
-        # 1. Cria uma "fábrica de sessões".
-        #    Isso NÃO conecta ainda, apenas cria uma receita que sabe abrir sessões ligadas ao 'model.db' (Engine).
-        Session = sessionmaker(bind=model.db)
-
-        # 2. Agora sim, abre uma sessão real a partir da fábrica.
-        #    Aqui o SQLAlchemy pega uma conexão do pool do Engine e associa à sessão.
-        session = Session()
-
-        # 3. Entrega essa sessão para a rota que chamou.
-        #    O 'yield' serve como "ponto de pausa":
-        #    enquanto a rota roda, a sessão está ativa e pode ser usada em queries.
-        yield session
-
-    finally:
-        # 4. Quando a rota terminar (seja com sucesso ou erro),
-        #    esse bloco roda garantindo que a sessão seja fechada
-        #    e a conexão devolvida ao pool.
-        session.close()
+# Declara um "schema" OAuth2 que diz: "espero receber o token via header Authorization: Bearer <token>"
+# tokenUrl é usado PELO SWAGGER/CLIENTE para saber onde o cliente pede o token (rota de login).
+# Importante: isso NÃO faz validação automática do token — só ajuda o FastAPI a extrair o token do header.
+oauth2_schema = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 
-
+# === dependencies.py (função que valida o token em cada requisição protegida) ===
+from fastapi import Depends, HTTPException, status
+from jose import jwt, JWTError  # usando python-jose como exemplo
+# from sqlalchemy.orm import Session
+# from your_project.database import model
+# from your_project.dependencies import pegar_sessao
 
 def verificar_token(token: str = Depends(oauth2_schema), session: Session = Depends(pegar_sessao)):
     """
@@ -58,28 +43,50 @@ def verificar_token(token: str = Depends(oauth2_schema), session: Session = Depe
     except JWTError:
         # Se qualquer problema na validação do token → negar o acesso.
         # Isso cobre token inválido, token adulterado, token expirado (dependendo da lib).
-        raise HTTPException(status_code=401, detail="Acesso negado, verifique validade do token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Acesso negado, verifique validade do token")
 
     # --- A seguir, garantimos que o usuário indicado pelo token realmente existe no banco ---
     usuario = session.query(model.Usuario).filter(model.Usuario.idT == id_usuario).first()
     if not usuario:
         # Mesmo com token válido, se o id não existir no DB, negamos o acesso.
-        raise HTTPException(status_code=401, detail="Acesso negado")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Acesso negado")
 
     # Se chegou até aqui: token válido e usuário existe -> retornamos o objeto usuário.
     # Esse objeto será injetado nas rotas que fizerem Depends(verificar_token).
     return usuario
 
 
+# === authentication (rota de refresh) ===
+from fastapi import APIRouter
 
+auth_routerr = APIRouter(prefix="/auth", tags=["auth"])
 
+@auth_routerr.get("/refresh")
+async def use_refresh_token(usuario: model.Usuario = Depends(verificar_token)):
+    """
+    O que acontece aqui:
+    - Quando alguém chama GET /auth/refresh, o FastAPI automaticamente:
+       1) pega o header Authorization (se existir),
+       2) passa o token para oauth2_schema, que entrega só a string do JWT,
+       3) chama verificar_token(token=..., session=...) — que decodifica e retorna `usuario`.
+    - Se verificar_token levantar HTTPException(401), a rota NUNCA roda.
+    - Se verificar_token retornar um usuário, a variável `usuario` já é esse modelo do DB
+      e você pode criar um novo access token pra ele.
+    """
 
-
-
-
-
-
-
+    # >>> Atenção importante de segurança:
+    # No seu código atual, qualquer token válido (seja access ou refresh) permite chamar /refresh.
+    # Boa prática: distinguir **refresh tokens** de **access tokens**.
+    #   - ao criar o refresh token, adicionar uma claim: {"sub": id, "type": "refresh", ...}
+    #   - então aqui verificar dic_info.get("type") == "refresh"
+    # Ou: armazenar refresh tokens no DB (mais seguro), e validar contra o DB.
+    #
+    # Sem essa distinção, um access token roubado poderia ser usado para gerar novos access tokens.
+    access_token = create_token(usuario.idT)
+    return {
+        "access_token": access_token,
+        "token_type": "Bearer"
+    }
 
 
 # ============================

@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from database import model
-from depedencies import pegar_sessao # função que devolve a sessão do banco
-from main import bycrypt_context
+from depedencies import verificar_token, pegar_sessao # função que devolve a sessão do banco
+from main import bycrypt_context, ALGORITHM, ACESS_TOKEN_EXIPIRE_MINUTES, SECRET_KEY
 from schemas import UsuarioSchema, LoginSchema
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from jose import jwt, JWTError
+from fastapi.security import OAuth2PasswordRequestForm
+from datetime import datetime, timedelta, timezone
 
 # a aplicacao vai ser organizada por exemplo: "dominiosite/auth/cadastro"
 
@@ -29,20 +31,46 @@ from sqlalchemy import and_
 # O router organiza de forma prática no código e nas URLs reais.
 
 # A tag organiza de forma visual e descritiva na doc.
-auth_routerr = APIRouter(prefix="/auth", tags=["auth"])
+auth_routerr = APIRouter(prefix="/auth", tags=["autenticação"])
 
+
+def create_token(id_user,duration_token= timedelta(minutes=ACESS_TOKEN_EXIPIRE_MINUTES) ):
+    #timezone.utc(fuso horário da linha central de greniwch)  timedelta(variacao de tempo)
+    data_expiracao = datetime.now(timezone.utc) + duration_token
+
+    #dicionário com as informações do usuário oara gerar o token, as chaves tem que ser 'sub' e 'exp', se nao a codificao do jwt não vai entender
+    dic_info = {"sub": str(id_user), "exp": data_expiracao}
+
+    #pra gerar o token, vc precisa usar a função jwt.encode(dicionario com as informações do usuario, a chave secreta que vai esconder as infromações nesse texto, e o tipo de algoritimo)
+    jwt_codificado = jwt.encode(dic_info, SECRET_KEY, ALGORITHM)
+
+    return jwt_codificado
 
 
 
 
 def usuario_login(email, senha, session):
-    usario_cadastrado = session.query(model.Usuario).filter(email == model.Usuario.emailT).first()
+    usario_cadastrado = session.query(model.Usuario).filter(model.Usuario.emailT == email).first()
     
     if not usario_cadastrado:
         return False
 
     elif not bycrypt_context.verify(senha, usario_cadastrado.passwordT):
         return False
+    # Se no banco a senha tá salva em texto plano (ex: "12345"), o verify vai quebrar, tem que ser uma senha já codificada pra verificar com a senha tamabem codificada que o bycrypt vai gerar .
+    
+    return usario_cadastrado
+
+
+def usuario_login_authorize(name, senha, session):
+    usario_cadastrado = session.query(model.Usuario).filter(model.Usuario.nameT == name).first()
+    
+    if not usario_cadastrado:
+        return False
+
+    elif not bycrypt_context.verify(senha, usario_cadastrado.passwordT):
+        return False
+    # Se no banco a senha tá salva em texto plano (ex: "12345"), o verify vai quebrar, tem que ser uma senha já codificada pra verificar com a senha tamabem codificada que o bycrypt vai gerar .
     
     return usario_cadastrado
 
@@ -152,10 +180,69 @@ async def login(login_schema: LoginSchema, session: Session = Depends(pegar_sess
     user = usuario_login(login_schema.email_login, login_schema.senha_login, session)
 
     if user:
-        return {'mensagem': f'usuario { {login_schema.email_login} } logado'}
+        acess_token = create_token(user.idT)
+        refresh_token = create_token(user.idT, timedelta(days=7) )
+
+        return {
+            "acess_token": acess_token,
+            "refresh_token": refresh_token,
+            "token_type": "Bearer"        # Mas por que tem que informar token_type?      
+                                          # O cliente (frontend, app, outro serviço) precisa saber como usar o token quando for mandar requisições futuras.
+                                          # O tipo mais comum é Bearer, que significa literalmente: “se você tem o token, você pode usá-lo”. 
+        }   
     
     if not user:
         # return {"Mensagem": f"{ {login_schema.email_login} } logado"}
         raise HTTPException(status_code=400, detail= f"usuário { {login_schema.email_login} } não foi cadastrado ou credencias inválidas")
-       
+    
+
+
+
+
+
+#formulario de atalho pra vc inserir o token e as rotas onde pedem o token automaticamente serem liberadas
+@auth_routerr.post('/form-authorization')
+async def login(dados_form: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(pegar_sessao)):
+    user = usuario_login_authorize(dados_form.username, dados_form.password, session)
+
+    if user:
+        acess_token = create_token(user.idT)
+
+        return {
+            "acess_token": acess_token,
+            "token_type": "Bearer"        
+        }   
+    
+    if not user:
+        # return {"Mensagem": f"{ {login_schema.email_login} } logado"}
+        raise HTTPException(status_code=400, detail= f"usuário { {dados_form.username} } não foi cadastrado ou credencias inválidas")
+    
+
   
+
+@auth_routerr.get("/refresh")
+async def use_refresh_token(usuario: model.Usuario = Depends(verificar_token)):
+    """
+    O que acontece aqui:
+    - Quando alguém chama GET /auth/refresh, o FastAPI automaticamente:
+       1) pega o header Authorization (se existir),
+       2) passa o token para oauth2_schema, que entrega só a string do JWT,
+       3) chama verificar_token(token=..., session=...) — que decodifica e retorna `usuario`.
+    - Se verificar_token levantar HTTPException(401), a rota NUNCA roda.
+    - Se verificar_token retornar um usuário, a variável `usuario` já é esse modelo do DB
+      e você pode criar um novo access token pra ele.
+    """
+
+    # >>> Atenção importante de segurança:
+    # No seu código atual, qualquer token válido (seja access ou refresh) permite chamar /refresh.
+    # Boa prática: distinguir **refresh tokens** de **access tokens**.
+    #   - ao criar o refresh token, adicionar uma claim: {"sub": id, "type": "refresh", ...}
+    #   - então aqui verificar dic_info.get("type") == "refresh"
+    # Ou: armazenar refresh tokens no DB (mais seguro), e validar contra o DB.
+    #
+    # Sem essa distinção, um access token roubado poderia ser usado para gerar novos access tokens.
+    access_token = create_token(usuario.idT)
+    return {
+        "access_token": access_token,
+        "token_type": "Bearer"
+    }
