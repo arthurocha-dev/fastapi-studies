@@ -206,7 +206,16 @@ async def login(login_schema: LoginSchema, session: Session = Depends(pegar_sess
 
 
 
+# 🔑 Aqui você está dizendo ao FastAPI:
+# "Ei, pegue os dados do login (username e password) do formato padrão do OAuth2!"
+# Ou seja, agora a rota espera receber os dados no formato:
+# application/x-www-form-urlencoded
+# campos: username, password
+# 📦 E mais importante: o Swagger reconhece esse formato automaticamente quando você usa OAuth2PasswordBearer.
+# Isso faz com que:
+# o botão 🔒 funcione certinho,
 
+# e o token seja usado nas rotas protegidas.
 #formulario de atalho pra vc inserir o token e as rotas onde pedem o token automaticamente serem liberadas
 @auth_routerr.post('/form-authorization')
 async def login(dados_form: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(pegar_sessao)):
@@ -223,9 +232,48 @@ async def login(dados_form: OAuth2PasswordRequestForm = Depends(), session: Sess
     if not user:
         # return {"Mensagem": f"{ {login_schema.email_login} } logado"}
         raise HTTPException(status_code=400, detail= f"usuário { {dados_form.username} } não foi cadastrado ou credencias inválidas")
-    
+# 🧠 O que é o Depends() no FastAPI?
 
-  
+# Depends() é um sistema de injeção de dependências.
+# Traduzindo o nome chique: ele serve pra dizer ao FastAPI "essa função (ou rota) precisa disso aqui pra funcionar, então resolva isso automaticamente pra mim".
+
+# No teu caso específico:
+
+# login_token: OAuth2PasswordRequestForm = Depends()
+
+
+# Aqui está acontecendo o seguinte:
+
+# OAuth2PasswordRequestForm é uma classe pronta do FastAPI que lê automaticamente os dados de login que chegam via form-data (geralmente username e password).
+
+# O = Depends() diz ao FastAPI: "por favor, crie esse objeto automaticamente a partir dos dados enviados no body da requisição".
+
+# Ou seja, quando alguém chama tua rota de login, o FastAPI:
+
+# Pega os dados enviados no corpo da requisição.
+
+# Cria automaticamente uma instância de OAuth2PasswordRequestForm.
+
+# Injeta essa instância na variável login_token.
+
+# 💡 Analogia simples:
+# Pensa no Depends() como um garçom. Em vez de tu ir na cozinha pegar os ingredientes, ele vai lá e traz tudo prontinho pra tua mesa.
+# No caso acima, ele vai buscar os dados do formulário e já te entrega eles dentro de login_token.    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @auth_routerr.get("/refresh")
 async def use_refresh_token(usuario: model.Usuario = Depends(verificar_token)):
