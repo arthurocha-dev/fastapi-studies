@@ -50,7 +50,33 @@ async def cancel_request(id_pedido: int, session: Session = Depends(pegar_sessao
 
 
 @requested_routerr.get("/list_request")
-async def listar(session: Session = Depends(pegar_sessao), usuario: model.Usuario = Depends(verificar_token)):
+async def listar(
+    session: Session = Depends(pegar_sessao),
+
+    
+#  🧠 Passo a passo do que acontece nos bastidores
+
+# O FastAPI vê o Depends(verificar_token) e entende:
+# 👉 “Antes de chamar essa rota, eu preciso executar a função verificar_token().”
+
+# A função verificar_token() é chamada automaticamente.
+
+# Ela provavelmente extrai o token JWT do header Authorization.
+
+# Decodifica esse token pra descobrir o id do usuário.
+
+# Vai no banco com esse id e faz algo como:
+
+# user = session.query(model.Usuario).filter(model.Usuario.idT == user_id).first()
+# return user
+
+
+# O valor retornado por verificar_token() é injetado no parâmetro usuario.
+
+# Ou seja: usuario agora é uma instância do teu modelo Usuario carregada direto do banco.
+
+# Tu pode acessar tudo: usuario.idT, usuario.nome, usuario.admT, etc.
+    usuario: model.Usuario = Depends(verificar_token)):
     if not usuario.admT:
         raise HTTPException(status_code=401, detail="Você não tem alturização pra fazer essa requisição")
     else:
